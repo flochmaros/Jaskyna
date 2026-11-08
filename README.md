@@ -10,7 +10,9 @@ Osobné úlohy a poznámky v rytme slnka. Farby sa menia podľa skutočného sln
 3. Raz ju otvor z plochy s internetom, potom funguje aj offline.
 
 ## Ako to funguje
-- Úlohy a poznámky sa ukladajú len v zariadení. Na prenos medzi zariadeniami slúži **Záloha a obnova** dole v zozname.
+- Úlohy a poznámky sa ukladajú len v zariadení.
+- **Priame spárovanie** (Záloha a prenos → Vytvoriť kód / Mám kód): mobil a počítač sa synchronizujú samy, keď je Jaskyňa otvorená na oboch. Spojenie ide priamo medzi zariadeniami (WebRTC cez verejný server PeerJS, ktorý ich len zoznámi) a je šifrované kľúčom z párovacieho kódu.
+- Záloha na Google Disk cez Zdieľať; pri načítaní sa dáta spoja.
 - Pri pridávaní môžeš napísať termín a čas rovno do textu: „nemčina zajtra o 16“, „basket v piatok 18:30“. Výkričník = dôležité.
 - V detaile úlohy s termínom je **Do kalendára**: otvorí Google Kalendár s predvyplnenou udalosťou.
 

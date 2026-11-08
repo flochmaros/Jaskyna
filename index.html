@@ -193,6 +193,9 @@
   .cal.off{color:var(--ash2)} .cal.done{color:var(--ash)}
   .bk{font-size:14px;color:var(--ash);line-height:1.5;padding:6px 0 14px;font-weight:300}
   .bkw{font-size:12px;color:var(--ash2)}
+  .code{font-weight:500;letter-spacing:1.5px;color:var(--ivory);white-space:nowrap}
+  .codein{flex:1;background:none;border:1px solid var(--hair);border-radius:10px;padding:10px 12px;color:var(--ivory);font-size:17px;letter-spacing:2px;text-transform:uppercase;outline:none}
+  .codein:focus{border-color:var(--gold)}
   .bk.small{font-size:13px;color:var(--gold);padding-top:10px}
   .more.foot{color:var(--ash2);margin-top:18px}
   .del{color:var(--ember);font-size:14px;padding:18px 0 4px}
@@ -270,7 +273,8 @@ const cap=s=>s[0].toUpperCase()+s.slice(1);
 const LISTS=[{id:'os',n:'Osobné'},{id:'sk',n:'Škola'},{id:'pr',n:'Projekty'}];
 const L=id=>LISTS.find(l=>l.id===id)||LISTS[0];
 
-const KEY='jaskyna';
+const PROFIL=new URLSearchParams(location.search).get('profil');
+const KEY='jaskyna'+(PROFIL?'-'+PROFIL.replace(/[^a-z0-9]/gi,''):'');
 const FRESH=()=>({f:'today',tasks:[],notes:[{id:'n0',pin:true,ts:Date.now(),t:'Ako na Jaskyňu',
   b:'Úlohu pridáš dole. Rovno do textu môžeš napísať termín a čas: „nemčina zajtra o 16“, „basket v piatok 18:30“. Výkričník ju označí ako dôležitú.\n\nPotiahnutím prsta po zozname prepínaš Dnes, 7 dní, Všetko a zoznamy. Za posledným zoznamom sú Poznámky.\n\nÚlohu s termínom pošleš do Google Kalendára v jej detaile cez „Do kalendára“.\n\nVšetko sa ukladá len v tomto zariadení. Na prenos medzi mobilom a počítačom cez Google Disk slúži „Záloha a prenos“ úplne dole v zozname.\n\nTúto poznámku môžeš kľudne vymazať.'}]});
 let S;try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}
@@ -289,7 +293,7 @@ function stamp(){const now=Date.now(),seen=new Set();S.deleted=S.deleted||{};
   const old=now-90*864e5;for(const key in S.deleted)if(S.deleted[key]<old)delete S.deleted[key];
 }
 snapAll();
-const save=()=>{stamp();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){snack&&snack('Nedá sa uložiť, úložisko je plné')}};
+const save=()=>{stamp();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){snack&&snack('Nedá sa uložiť, úložisko je plné')}if(window.Sync)Sync.changed()};
 function mergeIn(d){
   const del={...(S.deleted||{})};Object.entries(d.deleted||{}).forEach(([k,v])=>{if(!del[k]||v>del[k])del[k]=v});
   let added=0,updated=0;
@@ -298,7 +302,7 @@ function mergeIn(d){
     (d[k]||[]).forEach(it=>{if(!it||!it.id)return;const mine=map.get(it.id);
       const gone=del[k+':'+it.id]>=(it.u||0);
       if(!mine){map.set(it.id,{...it,u:it.u||1});if(!gone)added++}
-      else if((it.u||0)>(mine.u||0)){map.set(it.id,it);if(!gone&&body(it)!==body(mine))updated++}});
+      else if((it.u||0)>(mine.u||0)){const ch=body(it)!==body(mine);Object.keys(mine).forEach(x=>delete mine[x]);Object.assign(mine,it);if(!gone&&ch)updated++}});
     S[k]=[...map.values()].filter(it=>!(del[k+':'+it.id]>=(it.u||0)));
   });
   S.deleted=del;snapAll();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
@@ -757,10 +761,95 @@ function download({name,blob}){const a=document.createElement('a');a.href=URL.cr
 function whenTxt(ts){if(!ts)return 'ešte nikdy';const x=new Date(ts),d=diff(new Date(ts).setHours(0,0,0,0));
   const hm=x.toLocaleTimeString('sk-SK',{hour:'2-digit',minute:'2-digit'});
   return d===0?'dnes o '+hm:d===-1?'včera o '+hm:`${x.getDate()}. ${x.getMonth()+1}. o ${hm}`}
+/* ---------------- direct pairing (WebRTC via PeerJS) ----------------
+   Both devices share a pairing code. From it we derive a hidden peer id and an AES key;
+   the public PeerJS server only introduces the two devices, all data goes directly
+   between them and is encrypted with the key, so anyone without the code learns nothing. */
+const Sync=window.Sync=(()=>{
+  const PK=KEY+'-pair',enc=new TextEncoder(),dec=new TextDecoder();
+  let pair=null;try{pair=JSON.parse(localStorage.getItem(PK))}catch(e){}
+  let peer=null,conn=null,key=null,ids=null,timer=null,sendT=null,state='off',lastSync=null,loading=null;
+  const ui=()=>{const el=$('syncBox');if(el)el.innerHTML=boxHTML();const f=document.querySelectorAll('[data-a=backup]');
+    f.forEach(b=>b.textContent=state==='on'?'Záloha a prenos, spojené':'Záloha a prenos')};
+  const set=st=>{state=st;if(st==='on'){const m=$('bkmsg');if(m&&/Spájam|Na druhom/.test(m.textContent))m.textContent='Spojené. Odteraz sa zmeny prenášajú samy.'}ui()};
+  const ALPH='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const newCode=()=>{const r=crypto.getRandomValues(new Uint8Array(12));let c='';r.forEach((x,i)=>{c+=ALPH[x%32];if(i===3||i===7)c+='-'});return c};
+  const norm=c=>c.toUpperCase().replace(/[^A-Z0-9]/g,'').replace(/O/g,'0').replace(/I/g,'1');
+  async function derive(code){
+    const raw=enc.encode('jaskyna:'+norm(code));
+    const h=new Uint8Array(await crypto.subtle.digest('SHA-256',raw));
+    const hex=[...h.slice(0,10)].map(x=>x.toString(16).padStart(2,'0')).join('');
+    key=await crypto.subtle.importKey('raw',await crypto.subtle.digest('SHA-256',enc.encode('key:'+norm(code))),'AES-GCM',false,['encrypt','decrypt']);
+    ids={a:'jaskyna-'+hex+'-a',b:'jaskyna-'+hex+'-b'};
+  }
+  async function seal(obj){const iv=crypto.getRandomValues(new Uint8Array(12));
+    const ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,enc.encode(JSON.stringify(obj))));
+    return {iv:[...iv],ct:btoa(String.fromCharCode(...ct))}}
+  async function open_(m){const ct=Uint8Array.from(atob(m.ct),c=>c.charCodeAt(0));
+    return JSON.parse(dec.decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:new Uint8Array(m.iv)},key,ct)))}
+  function loadLib(){if(window.Peer)return Promise.resolve();if(loading)return loading;
+    loading=new Promise((res,rej)=>{const sc=document.createElement('script');sc.src='vendor/peerjs.min.js';sc.onload=res;sc.onerror=()=>{loading=null;rej()};document.head.appendChild(sc)});return loading}
+  const opts=()=>{let o={};try{o=JSON.parse(localStorage.getItem('jaskyna-peerhost'))||{}}catch(e){}return o};
+  async function sendState(){if(!conn||!conn.open)return;
+    try{conn.send(await seal({t:'state',tasks:S.tasks,notes:S.notes,deleted:S.deleted||{}}))}catch(e){}}
+  function bind(c){
+    c.on('open',()=>{if(conn&&conn!==c&&conn.open){c.close();return}conn=c;set('on');sendState()});
+    c.on('data',async m=>{let d;try{d=await open_(m)}catch(e){return}
+      if(d.t==='state'){const r=mergeIn(d);lastSync=Date.now();
+        if(r.added||r.updated){renderTasks();renderNotes();snack(`Zosynchronizované: ${r.added+r.updated} ${plural(r.added+r.updated,'zmena','zmeny','zmien')} z druhého zariadenia`)}
+        ui()}});
+    c.on('close',()=>{if(conn===c){conn=null;set(pair?'wait':'off');schedule()}});
+    c.on('error',()=>{});
+  }
+  function schedule(){clearTimeout(timer);if(!pair)return;timer=setTimeout(tick,state==='on'?15000:6000)}
+  function tick(){if(!pair||!navigator.onLine){schedule();return}
+    if(!peer||peer.destroyed||peer.disconnected){start();return}
+    if(pair.role==='b'&&!(conn&&conn.open)){const c=peer.connect(ids.a,{reliable:true});bind(c)}
+    schedule()}
+  async function start(){
+    if(!pair)return;
+    try{await loadLib()}catch(e){set('error');schedule();return}
+    if(!ids)await derive(pair.code);
+    if(peer&&!peer.destroyed){try{peer.destroy()}catch(e){}}
+    set('wait');
+    peer=new Peer(ids[pair.role],opts());
+    peer.on('open',()=>{tick()});
+    peer.on('connection',c=>{if(pair.role==='a')bind(c);else c.close()});
+    peer.on('error',e=>{if(e&&e.type==='peer-unavailable'){return}
+      if(e&&e.type==='unavailable-id'){try{peer.destroy()}catch(_){}}
+      schedule()});
+    peer.on('disconnected',()=>{schedule()});
+  }
+  function stop(){clearTimeout(timer);try{conn&&conn.close()}catch(e){}conn=null;try{peer&&peer.destroy()}catch(e){}peer=null;ids=null;key=null}
+  async function setPair(code,role){stop();pair={code,role,at:Date.now()};localStorage.setItem(PK,JSON.stringify(pair));await derive(code);start()}
+  function unpair(){stop();pair=null;localStorage.removeItem(PK);set('off')}
+  function boxHTML(){
+    if(!pair)return `<div class="opt"><span>Priame spárovanie<br><small class="bkw">Mobil a počítač sa potom synchronizujú samy, keď máš Jaskyňu otvorenú na oboch</small></span>
+      <span class="ch"><button data-s="pnew">Vytvoriť kód</button><button data-s="penter">Mám kód</button></span></div>`;
+    const st=state==='on'?'spojené s druhým zariadením':state==='error'?'nedá sa pripojiť, skontroluj internet':'čaká na druhé zariadenie, otvor na ňom Jaskyňu';
+    const code=pair.role==='a'?`<br><small class="bkw">Kód na zadanie v druhom zariadení: <b class="code">${pair.code}</b></small>`:'';
+    return `<div class="opt"><span>Spárované, ${st}${lastSync?`<br><small class="bkw">Naposledy zosynchronizované ${whenTxt(lastSync)}</small>`:''}${code}</span>
+      <button class="cal off" data-s="punpair">Zrušiť</button></div>`;
+  }
+  async function act(a){
+    if(a==='pnew'){const code=newCode();await setPair(code,'a');$('bkmsg').innerHTML=`Na druhom zariadení otvor Jaskyňu → Záloha a prenos → Mám kód a zadaj <b class="code">${code}</b>`;}
+    if(a==='penter'){$('syncBox').innerHTML=`<div class="opt"><input class="codein" id="pcode" placeholder="XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false"><button class="cal" data-s="pgo">Spárovať</button></div>`;setTimeout(()=>{$('pcode').focus();$('pcode').onkeydown=e=>{if(e.key==='Enter')act('pgo')}},50);return}
+    if(a==='pgo'){const v=norm($('pcode').value);if(v.length!==12){$('bkmsg').textContent='Kód má 12 znakov, napríklad AB3K-9QXZ-7M2P.';return}
+      await setPair(v.slice(0,4)+'-'+v.slice(4,8)+'-'+v.slice(8),'b');$('bkmsg').textContent='Spájam sa. Druhé zariadenie musí mať Jaskyňu otvorenú.'}
+    if(a==='punpair'){unpair();$('bkmsg').textContent='Spárovanie je zrušené. Dáta ostali v oboch zariadeniach.'}
+    ui();
+  }
+  function changed(){clearTimeout(sendT);sendT=setTimeout(sendState,400)}
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&pair){if(conn&&conn.open)sendState();else tick()}});
+  addEventListener('online',()=>pair&&tick());
+  if(pair)setTimeout(start,300);
+  return {changed,act,boxHTML,get state(){return state}};
+})();
 function openBackup(){
   const n=S.tasks.length,m=S.notes.length;
   openSheet(`<div class="sbar"><span class="l">Záloha a prenos</span><button data-close data-s="x">Hotovo</button></div>
-    <p class="bk">Všetko je uložené len v tomto zariadení: ${n} ${plural(n,'úloha','úlohy','úloh')} a ${m} ${plural(m,'poznámka','poznámky','poznámok')}. Na prenos medzi mobilom a počítačom pošli zálohu na Google Disk a na druhom zariadení ju načítaj. Úlohy z oboch zariadení sa spoja a pri každej ostane novšia verzia.</p>
+    <p class="bk">Všetko je uložené len v tomto zariadení: ${n} ${plural(n,'úloha','úlohy','úloh')} a ${m} ${plural(m,'poznámka','poznámky','poznámok')}. Keď mobil a počítač spáruješ, synchronizujú sa samy vždy, keď máš Jaskyňu otvorenú na oboch. Záloha na Google Disk je poistka. Pri načítaní sa úlohy spoja a pri každej ostane novšia verzia.</p>
+    <div id="syncBox">${Sync.boxHTML()}</div>
     <div class="opt"><span>Poslať zálohu<br><small class="bkw">${S.lastBackup?"Naposledy "+whenTxt(S.lastBackup):"Zatiaľ si ju neposlal"}</small></span><button class="cal" data-s="share">Na Google Disk</button></div>
     <div class="opt"><span>Načítať zálohu z Disku<br><small class="bkw">Spojí ju s tým, čo je tu</small></span><label class="cal">Vybrať súbor<input type="file" id="imp" accept=".json,application/json" hidden></label></div>
     <p class="bk small" id="bkmsg"></p>`);
@@ -771,6 +860,7 @@ function openBackup(){
     const msg=!r.added&&!r.updated?'Všetko už bolo aktuálne':`Načítané: ${r.added} ${plural(r.added,'nová položka','nové položky','nových položiek')}, ${r.updated} ${plural(r.updated,'zmenená','zmenené','zmenených')}`;
     snack(msg,()=>{S=old;snapAll();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}renderTasks();renderNotes()})};
   $('sheet').onclick=async e=>{const s=e.target.closest('[data-s]');if(!s)return;
+    if(/^p(new|enter|go|unpair)$/.test(s.dataset.s)){Sync.act(s.dataset.s);return}
     if(s.dataset.s==='share'){const f=backupFile(),file=new File([f.blob],f.name,{type:'application/json'});
       const done=t=>{S.lastBackup=Date.now();save();$('bkmsg').textContent=t};
       if(navigator.canShare&&navigator.canShare({files:[file]})){

@@ -1,7 +1,7 @@
 // Jaskyňa: offline režim. Pri každej zmene súborov zvýš verziu.
-const VERZIA = 'jaskyna-v3';
+const VERZIA = 'jaskyna-v4';
 const JADRO = ['./', './index.html', './manifest.json', './icons/icon.svg',
-  './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png', './icons/apple-touch-icon.png'];
+  './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png', './icons/apple-touch-icon.png', './vendor/peerjs.min.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERZIA).then(c => c.addAll(JADRO)).then(() => self.skipWaiting()));
