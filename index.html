@@ -522,7 +522,7 @@ function renderTasks(){
   if(S.f==='today'){
     const lt=open.filter(t=>t.due!=null&&t.due<day(0)).sort(sortT),td=open.filter(t=>t.due===day(0)).sort(sortT);
     body=lt.length||td.length?grp('Po termíne',lt,{late:true,list:true})+grp(lt.length?'Dnes':'',td,{list:true,noDue:true})
-      :`<div class="empty"><b>Na dnes je hotovo.</b>Zajtra čakajú ${cnt.week} ${plural(cnt.week,'úloha','úlohy','úloh')} v najbližších 7 dňoch.</div>`;
+      :`<div class="empty"><b>Na dnes je hotovo.</b>${cnt.week?`V najbližších 7 dňoch ${plural(cnt.week,'čaká','čakajú','čaká')} ${cnt.week} ${plural(cnt.week,'úloha','úlohy','úloh')}.`:'Novú úlohu pridáš dole.'}</div>`;
   }else if(S.f==='week'){
     body=grp('Po termíne',open.filter(t=>t.due!=null&&t.due<day(0)).sort(sortT),{late:true,list:true});
     for(let i=0;i<=7;i++){const x=new Date(day(i));

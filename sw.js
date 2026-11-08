@@ -1,5 +1,5 @@
 // Jaskyňa: offline režim. Pri každej zmene súborov zvýš verziu.
-const VERZIA = 'jaskyna-v1';
+const VERZIA = 'jaskyna-v2';
 const JADRO = ['./', './index.html', './manifest.json', './icons/icon.svg',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png', './icons/apple-touch-icon.png'];
 
