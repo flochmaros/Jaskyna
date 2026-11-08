@@ -192,6 +192,7 @@
   .cal{color:var(--gold);font-size:14px;text-decoration:none;cursor:pointer;background:none;border:0;padding:2px 0}
   .cal.off{color:var(--ash2)} .cal.done{color:var(--ash)}
   .bk{font-size:14px;color:var(--ash);line-height:1.5;padding:6px 0 14px;font-weight:300}
+  .bkw{font-size:12px;color:var(--ash2)}
   .bk.small{font-size:13px;color:var(--gold);padding-top:10px}
   .more.foot{color:var(--ash2);margin-top:18px}
   .del{color:var(--ember);font-size:14px;padding:18px 0 4px}
@@ -271,10 +272,38 @@ const L=id=>LISTS.find(l=>l.id===id)||LISTS[0];
 
 const KEY='jaskyna';
 const FRESH=()=>({f:'today',tasks:[],notes:[{id:'n0',pin:true,ts:Date.now(),t:'Ako na Jaskyňu',
-  b:'Úlohu pridáš dole. Rovno do textu môžeš napísať termín a čas: „nemčina zajtra o 16“, „basket v piatok 18:30“. Výkričník ju označí ako dôležitú.\n\nPotiahnutím prsta po zozname prepínaš Dnes, 7 dní, Všetko a zoznamy. Za posledným zoznamom sú Poznámky.\n\nÚlohu s termínom pošleš do Google Kalendára v jej detaile cez „Do kalendára“.\n\nVšetko sa ukladá len v tomto zariadení. Na prenos alebo zálohu slúži „Záloha a obnova“ úplne dole v zozname.\n\nTúto poznámku môžeš kľudne vymazať.'}]});
+  b:'Úlohu pridáš dole. Rovno do textu môžeš napísať termín a čas: „nemčina zajtra o 16“, „basket v piatok 18:30“. Výkričník ju označí ako dôležitú.\n\nPotiahnutím prsta po zozname prepínaš Dnes, 7 dní, Všetko a zoznamy. Za posledným zoznamom sú Poznámky.\n\nÚlohu s termínom pošleš do Google Kalendára v jej detaile cez „Do kalendára“.\n\nVšetko sa ukladá len v tomto zariadení. Na prenos medzi mobilom a počítačom cez Google Disk slúži „Záloha a prenos“ úplne dole v zozname.\n\nTúto poznámku môžeš kľudne vymazať.'}]});
 let S;try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}
 if(!S||!Array.isArray(S.tasks))S=FRESH();
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){snack&&snack('Nedá sa uložiť, úložisko je plné')}};
+/* change tracking for merging backups: each item carries u = time of last change,
+   deleted items leave a tombstone in S.deleted so a merge doesn't bring them back */
+const KINDS=['tasks','notes'];let SNAP=new Map();
+const body=it=>{const {u,...r}=it;return JSON.stringify(r)};
+function snapAll(){SNAP=new Map();S.deleted=S.deleted||{};
+  KINDS.forEach(k=>S[k].forEach(it=>{if(!it.u)it.u=it.ts||Date.now();SNAP.set(k+':'+it.id,body(it))}))}
+function stamp(){const now=Date.now(),seen=new Set();S.deleted=S.deleted||{};
+  KINDS.forEach(k=>S[k].forEach(it=>{const key=k+':'+it.id,j=body(it);seen.add(key);
+    if(SNAP.get(key)!==j||!it.u){it.u=now;SNAP.set(key,j)}
+    if(S.deleted[key]){delete S.deleted[key];it.u=now}}));
+  for(const key of [...SNAP.keys()])if(!seen.has(key)){S.deleted[key]=now;SNAP.delete(key)}
+  const old=now-90*864e5;for(const key in S.deleted)if(S.deleted[key]<old)delete S.deleted[key];
+}
+snapAll();
+const save=()=>{stamp();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){snack&&snack('Nedá sa uložiť, úložisko je plné')}};
+function mergeIn(d){
+  const del={...(S.deleted||{})};Object.entries(d.deleted||{}).forEach(([k,v])=>{if(!del[k]||v>del[k])del[k]=v});
+  let added=0,updated=0;
+  KINDS.forEach(k=>{
+    const map=new Map(S[k].map(it=>[it.id,it]));
+    (d[k]||[]).forEach(it=>{if(!it||!it.id)return;const mine=map.get(it.id);
+      const gone=del[k+':'+it.id]>=(it.u||0);
+      if(!mine){map.set(it.id,{...it,u:it.u||1});if(!gone)added++}
+      else if((it.u||0)>(mine.u||0)){map.set(it.id,it);if(!gone&&body(it)!==body(mine))updated++}});
+    S[k]=[...map.values()].filter(it=>!(del[k+':'+it.id]>=(it.u||0)));
+  });
+  S.deleted=del;snapAll();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
+  return {added,updated};
+}
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
 let showDone=false,q='',menuOpen=false,slideIn='';
 
@@ -538,7 +567,7 @@ function renderTasks(){
   const doneList=S.tasks.filter(t=>t.done&&(S.f==='today'||S.f==='week'?t.due!=null&&t.due<=day(S.f==='week'?7:0):S.f==='all'||t.l===S.f));
   if(doneList.length)body+=showDone?grp('Dokončené',doneList,{list:true})+`<button class="more" data-a="done">Skryť dokončené</button>`
     :`<button class="more" data-a="done">Dokončené (${doneList.length})</button>`;
-  body+=`<button class="more foot" data-a="backup">Záloha a obnova</button>`;
+  body+=`<button class="more foot" data-a="backup">Záloha a prenos</button>`;
 
   const keep=$('pTasks').scrollTop;
   $('pTasks').innerHTML=`
@@ -566,7 +595,7 @@ function renderNotes(focus){
     ${ns.length?ns.map(n=>`<button class="note ${n.pin?'pin':''}" data-id="${n.id}"><span class="mk"></span><span class="w">
       <span class="top"><span class="nt">${esc(n.t||'Bez názvu')}</span><span class="tm">${when(n.ts)}</span></span>
       <span class="pv" style="display:block">${esc((n.b||'').replace(/\n/g,'  ')||'Prázdna poznámka')}</span></span></button>`).join('')
-    :`<div class="empty">${ql?'Nič sa nenašlo.':'<b>Zatiaľ žiadne poznámky.</b>Napíš prvú dole.'}</div>`}<button class="more foot" data-a="backup">Záloha a obnova</button>`;
+    :`<div class="empty">${ql?'Nič sa nenašlo.':'<b>Zatiaľ žiadne poznámky.</b>Napíš prvú dole.'}</div>`}<button class="more foot" data-a="backup">Záloha a prenos</button>`;
   const i=$('nq');i.oninput=()=>{q=i.value;renderNotes(true)};
   if(focus){i.focus();i.setSelectionRange(q.length,q.length)}
 }
@@ -717,24 +746,38 @@ function calLink(t){
   return 'https://calendar.google.com/calendar/render?'+q.toString();
 }
 /* ---------------- backup ---------------- */
+function backupFile(){
+  const d=new Date(),p=x=>String(x).padStart(2,'0');
+  const json=JSON.stringify({app:'jaskyna',v:2,saved:d.toISOString(),tasks:S.tasks,notes:S.notes,deleted:S.deleted||{}});
+  const name=`jaskyna-${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.json`;
+  return {name,blob:new Blob([json],{type:'application/json'})};
+}
+function download({name,blob}){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;
+  document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000)}
+function whenTxt(ts){if(!ts)return 'ešte nikdy';const x=new Date(ts),d=diff(new Date(ts).setHours(0,0,0,0));
+  const hm=x.toLocaleTimeString('sk-SK',{hour:'2-digit',minute:'2-digit'});
+  return d===0?'dnes o '+hm:d===-1?'včera o '+hm:`${x.getDate()}. ${x.getMonth()+1}. o ${hm}`}
 function openBackup(){
   const n=S.tasks.length,m=S.notes.length;
-  openSheet(`<div class="sbar"><span class="l">Záloha a obnova</span><button data-close data-s="x">Hotovo</button></div>
-    <p class="bk">Jaskyňa ukladá všetko len v tomto zariadení (${n} ${plural(n,'úloha','úlohy','úloh')}, ${m} ${plural(m,'poznámka','poznámky','poznámok')}). Zálohu si stiahni do súboru. Na inom zariadení ju otvoríš cez Obnoviť.</p>
-    <div class="opt"><span>Uložiť všetko do súboru</span><button class="cal" data-s="exp">Stiahnuť zálohu</button></div>
-    <div class="opt"><span>Nahradiť dáta zálohou</span><label class="cal">Obnoviť zo súboru<input type="file" id="imp" accept=".json,application/json" hidden></label></div>
+  openSheet(`<div class="sbar"><span class="l">Záloha a prenos</span><button data-close data-s="x">Hotovo</button></div>
+    <p class="bk">Všetko je uložené len v tomto zariadení: ${n} ${plural(n,'úloha','úlohy','úloh')} a ${m} ${plural(m,'poznámka','poznámky','poznámok')}. Na prenos medzi mobilom a počítačom pošli zálohu na Google Disk a na druhom zariadení ju načítaj. Úlohy z oboch zariadení sa spoja a pri každej ostane novšia verzia.</p>
+    <div class="opt"><span>Poslať zálohu<br><small class="bkw">${S.lastBackup?"Naposledy "+whenTxt(S.lastBackup):"Zatiaľ si ju neposlal"}</small></span><button class="cal" data-s="share">Na Google Disk</button></div>
+    <div class="opt"><span>Načítať zálohu z Disku<br><small class="bkw">Spojí ju s tým, čo je tu</small></span><label class="cal">Vybrať súbor<input type="file" id="imp" accept=".json,application/json" hidden></label></div>
     <p class="bk small" id="bkmsg"></p>`);
-  $('imp').onchange=async e=>{const f=e.target.files[0];if(!f)return;
-    try{const d=JSON.parse(await f.text());if(!Array.isArray(d.tasks)||!Array.isArray(d.notes))throw 0;
-      const old=S;S={...FRESH(),...d,f:'today'};save();renderTasks();renderNotes();closeSheet();
-      snack(`Obnovené: ${S.tasks.length} ${plural(S.tasks.length,'úloha','úlohy','úloh')}, ${S.notes.length} ${plural(S.notes.length,'poznámka','poznámky','poznámok')}`,()=>{S=old;save();renderTasks();renderNotes()})}
-    catch(_){$('bkmsg').textContent='Tento súbor nie je záloha Jaskyne. Nič som nezmenil.'}};
-  $('sheet').onclick=e=>{const s=e.target.closest('[data-s]');if(!s)return;
-    if(s.dataset.s==='exp'){const d=new Date(),p=x=>String(x).padStart(2,'0');
-      const b=new Blob([JSON.stringify({app:'jaskyna',v:1,saved:d.toISOString(),tasks:S.tasks,notes:S.notes},null,1)],{type:'application/json'});
-      const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`jaskyna-${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}.json`;
-      document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
-      $('bkmsg').textContent='Záloha je stiahnutá.';return}
+  $('imp').onchange=async e=>{const f=e.target.files[0];if(!f)return;e.target.value='';
+    let d;try{d=JSON.parse(await f.text());if(!Array.isArray(d.tasks)||!Array.isArray(d.notes))throw 0}
+    catch(_){$('bkmsg').textContent='Tento súbor nie je záloha Jaskyne. Nič som nezmenil.';return}
+    const old=JSON.parse(JSON.stringify(S)),r=mergeIn(d);renderTasks();renderNotes();closeSheet();
+    const msg=!r.added&&!r.updated?'Všetko už bolo aktuálne':`Načítané: ${r.added} ${plural(r.added,'nová položka','nové položky','nových položiek')}, ${r.updated} ${plural(r.updated,'zmenená','zmenené','zmenených')}`;
+    snack(msg,()=>{S=old;snapAll();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}renderTasks();renderNotes()})};
+  $('sheet').onclick=async e=>{const s=e.target.closest('[data-s]');if(!s)return;
+    if(s.dataset.s==='share'){const f=backupFile(),file=new File([f.blob],f.name,{type:'application/json'});
+      const done=t=>{S.lastBackup=Date.now();save();$('bkmsg').textContent=t};
+      if(navigator.canShare&&navigator.canShare({files:[file]})){
+        try{await navigator.share({files:[file],title:'Záloha Jaskyne'});done('Hotovo. V ponuke Zdieľať si mal zvoliť Disk a „Uložiť“.')}
+        catch(err){if(err&&err.name!=='AbortError'){download(f);done('Zdieľanie nefungovalo, záloha sa stiahla. Nahraj ju na Disk ručne.')}}
+      }else{download(f);done('Záloha sa stiahla. Nahraj ju na drive.google.com do priečinka, kde ju nájdeš aj z mobilu.')}
+      return}
     closeSheet()};
 }
 function openNote(n,focusBody){
