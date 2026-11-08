@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080504" id="tc">
+<title>Jaskyňa</title>
+<meta name="description" content="Úlohy a poznámky v rytme slnka.">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Jaskyňa">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* set from the sun's position by JS; these are the night values */
+    --black:#080504; --dial:#120C09; --raise:#1A110C; --hair:#26190F;
+    --ivory:#D9A27A; --ash:#8A6248; --ash2:#4A3324;
+    --gold:#D9733F; --gold-hi:#D9733F; --gold-lo:#6B3A20; --ember:#B9483A; --onacc:#080504;
+    --sky1:#080504; --sky2:#140B07; --ridge1:#1A100B; --ridge2:#110A07; --orb:#C9A07A; --track:rgba(217,162,122,.14);
+  }
+  *{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;background:var(--black);color:var(--ivory);overflow:hidden;
+    font-family:"Jost",-apple-system,system-ui,sans-serif;font-weight:400;font-size:16px;line-height:1.3;-webkit-font-smoothing:antialiased;
+    font-variant-numeric:tabular-nums}
+  button,input,textarea{font:inherit;color:inherit}
+  button{background:none;border:0;padding:0;cursor:pointer}
+  :focus-visible{outline:1px solid var(--gold);outline-offset:3px}
+
+  .app{position:relative;max-width:430px;height:100%;margin:0 auto;display:flex;flex-direction:column;overflow:hidden}
+  .app{isolation:isolate}
+  .sky{position:absolute;left:0;right:0;top:0;height:300px;z-index:-1;pointer-events:none;
+       background:linear-gradient(to bottom,var(--sky1) 0%,var(--sky2) 85%);transition:background 1.2s}
+  .sky svg{position:absolute;left:0;right:0;bottom:0;width:100%;height:100%;display:block}
+  .sky .r1{fill:var(--ridge1)} .sky .r2{fill:var(--ridge2)}
+  .sky .fade{fill:url(#skyfade)}
+  .sky .r0{fill:var(--ridge0)}
+  .sky .r2.back{opacity:.72}
+  .vista{height:66px}
+  .fwrap{background:var(--black);transition:background-color 1.2s}
+  .flist{background:var(--black);min-height:60vh;transition:background-color 1.2s}
+  #pNotes{background:var(--black);transition:background-color 1.2s}
+  .sky .body{transition:transform 1.2s cubic-bezier(.3,.8,.2,1),opacity 1.2s}
+  .sky .sunc{fill:var(--orb)}
+  .sky .moonlit{fill:var(--moon)}
+  .sky .moondark{fill:var(--sky1)}
+  .sky .crater{fill:var(--sky2)}
+  .sky .st{fill:var(--star)}
+  .sky .st.tw{animation:tw 3.6s ease-in-out infinite alternate}
+  @keyframes tw{from{opacity:1}to{opacity:.3}}
+  .sky #stars,.sky .mist,.sky .cloud,.sky #hglow{transition:opacity 1.2s}
+  .sky .mist{fill:var(--mist)}
+  .sky .cloud{fill:var(--cloud)}
+  .sky .drift1{animation:drift 46s ease-in-out infinite alternate}
+  .sky .drift2{animation:drift 63s ease-in-out infinite alternate-reverse}
+  .sky .drift3{animation:drift 90s linear infinite alternate}
+  @keyframes drift{from{transform:translateX(-28px)}to{transform:translateX(28px)}}
+  .sky #shoot{stroke:var(--star);stroke-width:1.1;stroke-linecap:round;opacity:0}
+  body,.bar,.sheet,.menu,.snack,.sbar,.task .t,.gh,.filters button,.htxt,.note{transition:background-color 1.2s,color 1.2s,border-color 1.2s}
+  .switch .sun{margin-left:auto;font-size:12.5px;color:var(--ash);padding-bottom:13px;white-space:nowrap}
+  .switch .sun.prev{color:var(--gold)}
+
+  /* top switch: like the crown positions */
+  .switch{flex:0 0 auto;display:flex;align-items:flex-end;gap:26px;padding:calc(env(safe-area-inset-top) + 18px) 22px 0;position:relative}
+  .switch button{font-size:22px;font-weight:300;color:var(--ash2);padding-bottom:10px;transition:color .3s;letter-spacing:.2px}
+  .switch button.on{color:var(--ivory)}
+  .switch .line{position:absolute;bottom:0;height:1px;background:var(--gold);transition:left .1s linear,width .1s linear}
+  .switch::after{content:"";position:absolute;left:22px;right:22px;bottom:0;height:1px;background:var(--hair);z-index:-1}
+
+  .pager{flex:1;display:flex;overflow:hidden;scrollbar-width:none;overscroll-behavior-x:contain}
+  .pager::-webkit-scrollbar{display:none}
+  .panel{flex:0 0 100%;overflow-y:auto;overflow-x:hidden;touch-action:pan-y;padding-bottom:calc(env(safe-area-inset-bottom) + 92px)}
+
+  /* the dial */
+  .head{display:flex;align-items:center;gap:18px;padding:20px 22px 16px}
+  .dial{flex:0 0 132px;height:132px}
+  .dial svg{width:100%;height:100%;display:block;overflow:visible}
+  .htxt .d{font-size:21px;font-weight:300;letter-spacing:.2px}
+  .htxt .r{font-size:14px;color:var(--ash);margin-top:6px;line-height:1.45}
+  .htxt .r em{font-style:normal;color:var(--gold)}
+
+  /* filters */
+  .filters{display:flex;gap:18px;padding:0 22px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--hair)}
+  .filters::-webkit-scrollbar{display:none}
+  .filters button{flex:0 0 auto;font-size:14px;color:var(--ash);padding:9px 0 10px;position:relative;white-space:nowrap}
+  .filters button.on{color:var(--ivory)}
+  .filters button.on::after{content:"";position:absolute;left:50%;bottom:-1px;width:5px;height:5px;background:var(--gold);transform:translate(-50%,50%) rotate(45deg)}
+  .filters{overflow:visible;justify-content:space-between;gap:0}
+  .lbtn{display:flex;align-items:center;gap:6px}
+  .lbtn svg{width:9px;height:6px;stroke:currentColor;stroke-width:1.4;fill:none;transition:transform .25s}
+  .lbtn.open svg{transform:rotate(180deg)}
+  .fwrap{position:relative}
+  .menu{position:absolute;right:16px;top:calc(100% + 6px);z-index:7;min-width:190px;background:var(--raise);border:1px solid var(--hair);border-radius:12px;padding:6px 0;
+        opacity:0;transform:translateY(-6px);pointer-events:none;transition:opacity .2s,transform .2s}
+  .menu.on{opacity:1;transform:none;pointer-events:auto}
+  .menu button{display:flex;justify-content:space-between;width:100%;padding:11px 16px;font-size:15px;color:var(--ivory);text-align:left}
+  .menu button span{color:var(--ash2);font-size:13px}
+  .menu button.on{color:var(--gold)}
+  .flist{will-change:transform}
+  .flist.inL{animation:inL .32s cubic-bezier(.2,.8,.2,1)}
+  .flist.inR{animation:inR .32s cubic-bezier(.2,.8,.2,1)}
+  @keyframes inL{from{transform:translateX(38%);opacity:0}to{transform:none;opacity:1}}
+  @keyframes inR{from{transform:translateX(-38%);opacity:0}to{transform:none;opacity:1}}
+  .filters sup{font-size:10px;color:var(--ash2);margin-left:3px;vertical-align:4px}
+
+  /* compact task rows */
+  .gh{display:flex;justify-content:space-between;font-size:12.5px;color:var(--ash);padding:16px 22px 4px}
+  .gh.late{color:var(--ember)}
+  .task{display:flex;align-items:center;min-height:46px;padding:0 22px 0 0;position:relative;transition:opacity .25s,max-height .3s;max-height:90px;overflow:hidden}
+  .task .mk{flex:0 0 22px;align-self:stretch;position:relative}
+  .task.hi .mk::before{content:"";position:absolute;left:0;top:50%;width:9px;height:2px;background:var(--gold);transform:translateY(-50%)}
+  .chk{overflow:visible;flex:0 0 20px;height:20px;border-radius:50%;border:1px solid var(--ash2);position:relative;margin-right:14px;transition:border-color .2s}
+  .chk::after{content:"";position:absolute;inset:4px;border-radius:50%;background:var(--gold);transform:scale(0);transition:transform .25s cubic-bezier(.3,1.5,.5,1)}
+  .task.hi .chk{border-color:var(--gold-lo)}
+  .task.done .chk{border-color:var(--gold)}
+  .task.done .chk::after{transform:scale(1)}
+  .task .bd{flex:1;min-width:0;display:flex;align-items:baseline;gap:12px;padding:12px 0;border-bottom:1px solid var(--hair);cursor:pointer}
+  .task:last-child .bd{border-bottom:0}
+  .task .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:16px}
+  .task .ls{font-size:12.5px;color:var(--ash2)}
+  .task .du{font-size:13px;color:var(--ash);flex:0 0 auto}
+  .task .du.tm{color:var(--ivory);opacity:.75}
+  .task .du.late{color:var(--ember)} .task .du.today{color:var(--gold)}
+  .task.done .t{color:var(--ash2);text-decoration:line-through;text-decoration-thickness:1px}
+  .task.gone{max-height:0;opacity:0}
+  .rip{position:absolute;left:50%;top:50%;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;border:1px solid var(--gold);pointer-events:none;animation:rip .7s cubic-bezier(.2,.7,.3,1) forwards}
+  .rip.b{animation-delay:.08s;border-color:var(--gold);opacity:0}
+  @keyframes rip{0%{transform:scale(1);opacity:1}100%{transform:scale(2.2);opacity:0}}
+  .task.flash .t{background:linear-gradient(100deg,var(--ash2) 0 35%,var(--gold-hi) 50%,var(--ash2) 65% 100%);background-size:300% 100%;
+     -webkit-background-clip:text;background-clip:text;color:transparent;animation:sheen .8s ease-out forwards}
+  @keyframes sheen{from{background-position:100% 0}to{background-position:0 0}}
+  .dial svg{transition:filter .6s}
+  .dial.glow svg{animation:glow 1.1s ease-out}
+  .dial.glow.all svg{animation:glow 1.8s ease-out}
+  @keyframes glow{0%{filter:drop-shadow(0 0 0 transparent)}25%{filter:drop-shadow(0 0 9px var(--gold))}100%{filter:drop-shadow(0 0 0 transparent)}}
+  .more{display:block;padding:14px 22px;font-size:13px;color:var(--ash)}
+  .empty{padding:36px 22px;color:var(--ash);font-size:15px;line-height:1.5}
+  .empty b{display:block;color:var(--ivory);font-weight:400;font-size:18px;margin-bottom:2px}
+
+  /* notes */
+  .nsearch{display:flex;align-items:center;gap:10px;margin:18px 22px 6px;border-bottom:1px solid var(--hair);padding-bottom:9px}
+  .nsearch svg{width:15px;height:15px;stroke:var(--ash);fill:none;stroke-width:1.4}
+  .nsearch input{flex:1;background:none;border:0;outline:none;font-size:15px}
+  .nsearch input::placeholder{color:var(--ash2)}
+  .note{display:flex;gap:14px;width:100%;text-align:left;padding:13px 22px 13px 0;align-items:flex-start}
+  .note .mk{flex:0 0 22px;position:relative;align-self:stretch}
+  .note.pin .mk::before{content:"";position:absolute;left:0;top:12px;width:9px;height:2px;background:var(--gold)}
+  .note .w{flex:1;min-width:0;border-bottom:1px solid var(--hair);padding-bottom:13px;margin-bottom:-13px}
+  .note:last-child .w{border-bottom:0}
+  .note .top{display:flex;gap:12px;align-items:baseline}
+  .note .nt{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:16px}
+  .note .tm{font-size:12.5px;color:var(--ash2)}
+  .note .pv{font-size:14px;color:var(--ash);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:300}
+
+  /* bottom input */
+  .dock{position:absolute;left:0;right:0;bottom:0;z-index:5;padding:10px 16px calc(env(safe-area-inset-bottom) + 12px);
+        background:linear-gradient(to top,var(--black) 65%,transparent)}
+  .bar{display:flex;align-items:center;gap:10px;border:1px solid var(--hair);background:var(--dial);border-radius:24px;padding:4px 4px 4px 18px;transition:border-color .25s}
+  .bar:focus-within{border-color:var(--gold-lo)}
+  .bar input{flex:1;background:none;border:0;outline:none;font-size:16px;padding:9px 0}
+  .bar input::placeholder{color:var(--ash2)}
+  .bar .go{width:38px;height:38px;border-radius:50%;background:var(--gold);color:var(--onacc);display:grid;place-items:center}
+  .bar .go svg{width:16px;height:16px;stroke:var(--onacc);stroke-width:1.8;fill:none}
+  .parse{font-size:12.5px;color:var(--ash2);padding:6px 18px 0;min-height:22px}
+  .parse b{font-weight:400;color:var(--gold)}
+
+  /* sheets */
+  .shade{position:absolute;inset:0;background:rgba(0,0,0,.6);z-index:10;opacity:0;pointer-events:none;transition:opacity .3s}
+  .shade.on{opacity:1;pointer-events:auto}
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:11;background:var(--dial);border-top:1px solid var(--gold-lo);border-radius:20px 20px 0 0;
+         transform:translateY(102%);transition:transform .42s cubic-bezier(.32,.72,0,1);max-height:calc(100% - env(safe-area-inset-top) - 20px);overflow-y:auto;
+         padding:0 22px calc(env(safe-area-inset-bottom) + 22px)}
+  .sheet.full{height:calc(100% - env(safe-area-inset-top) - 20px)}
+  .sheet.on{transform:none}
+  .sbar{display:flex;justify-content:space-between;align-items:center;height:54px;position:sticky;top:0;background:var(--dial);z-index:1}
+  .sbar button{color:var(--gold);font-size:15px}
+  .sbar .l{color:var(--ash)}
+  .ti{width:100%;background:none;border:0;outline:none;font-size:24px;font-weight:300;padding:6px 0 12px;border-bottom:1px solid var(--hair)}
+  .tx{width:100%;background:none;border:0;outline:none;resize:none;font-size:16px;line-height:1.55;font-weight:300;padding-top:12px;min-height:90px}
+  .sheet.full .tx{min-height:calc(100vh - 220px)}
+  .ti::placeholder,.tx::placeholder{color:var(--ash2)}
+  .opt{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-top:1px solid var(--hair);gap:12px}
+  .opt>span{color:var(--ash);font-size:14px}
+  .ch{display:flex;gap:14px;flex-wrap:wrap;justify-content:flex-end}
+  .ch button{font-size:14px;color:var(--ash);position:relative;padding:2px 0}
+  .ch button.on{color:var(--gold)}
+  .time{background:none;border:1px solid var(--hair);border-radius:8px;padding:5px 8px;color:var(--ivory);font-size:14px;color-scheme:light dark}
+  .cal{color:var(--gold);font-size:14px;text-decoration:none;cursor:pointer;background:none;border:0;padding:2px 0}
+  .cal.off{color:var(--ash2)} .cal.done{color:var(--ash)}
+  .bk{font-size:14px;color:var(--ash);line-height:1.5;padding:6px 0 14px;font-weight:300}
+  .bk.small{font-size:13px;color:var(--gold);padding-top:10px}
+  .more.foot{color:var(--ash2);margin-top:18px}
+  .del{color:var(--ember);font-size:14px;padding:18px 0 4px}
+
+  .snack{position:absolute;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom) + 92px);z-index:8;border:1px solid var(--hair);background:var(--raise);border-radius:14px;
+         padding:12px 16px;display:flex;justify-content:space-between;font-size:14px;opacity:0;transform:translateY(10px);pointer-events:none;transition:all .28s}
+  .snack.on{opacity:1;transform:none;pointer-events:auto}
+  .snack button{color:var(--gold)}
+
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="sky" aria-hidden="true"><svg viewBox="0 0 430 300" preserveAspectRatio="xMidYMax slice">
+    <defs>
+      <linearGradient id="skyfade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--black)" stop-opacity="0"/><stop offset="1" style="stop-color:var(--black)"/></linearGradient>
+      <radialGradient id="gSun"><stop offset="0" style="stop-color:var(--orb)" stop-opacity=".5"/><stop offset=".3" style="stop-color:var(--orb)" stop-opacity=".16"/><stop offset="1" style="stop-color:var(--orb)" stop-opacity="0"/></radialGradient>
+      <radialGradient id="gMoon"><stop offset="0" style="stop-color:var(--moon)" stop-opacity=".35"/><stop offset=".35" style="stop-color:var(--moon)" stop-opacity=".09"/><stop offset="1" style="stop-color:var(--moon)" stop-opacity="0"/></radialGradient>
+      <radialGradient id="gHz" cx=".5" cy="1" r=".75"><stop offset="0" style="stop-color:var(--orb)" stop-opacity=".55"/><stop offset=".5" style="stop-color:var(--orb)" stop-opacity=".14"/><stop offset="1" style="stop-color:var(--orb)" stop-opacity="0"/></radialGradient>
+      <filter id="fMist" x="-30%" y="-200%" width="160%" height="500%"><feGaussianBlur stdDeviation="5"/></filter>
+      <clipPath id="moonClip"><path id="moonClipP"/></clipPath>
+    </defs>
+    <g id="stars"></g>
+    <line id="shoot" x1="0" y1="0" x2="0" y2="0"/>
+    <g class="drift3"><ellipse class="cloud" id="cl1" cx="110" cy="70" rx="70" ry="6" filter="url(#fMist)"/><ellipse class="cloud" id="cl2" cx="310" cy="112" rx="90" ry="5" filter="url(#fMist)"/></g>
+    <ellipse id="hglow" cx="215" cy="230" rx="190" ry="80" fill="url(#gHz)"/>
+    <g id="sunG" class="body"><circle r="38" fill="url(#gSun)"/><circle class="sunc" r="8.5"/></g>
+    <g id="moonG" class="body">
+      <circle id="moonHalo" r="30" fill="url(#gMoon)"/>
+      <circle class="moondark" id="moonDark" r="7.5"/>
+      <path class="moonlit" id="moonLit"/>
+      <g clip-path="url(#moonClip)" opacity=".22"><circle class="crater" cx="-2.4" cy="-2.1" r="2.1"/><circle class="crater" cx="2.7" cy="1.5" r="1.5"/><circle class="crater" cx="-.6" cy="3.5" r="1"/><circle class="crater" cx="3.1" cy="-3.2" r=".8"/><circle class="crater" cx="-4.3" cy="1.7" r=".9"/></g>
+    </g>
+    <path class="r0" d="M0 216 C26 210 48 203 72 198 C92 194 106 186 122 185 C138 184 150 192 166 195 C184 198 198 189 214 181 C228 174 242 171 256 172 C270 173 282 182 298 189 C314 196 330 192 348 184 C366 177 386 179 404 186 C416 190 424 194 430 196 L430 300 L0 300Z"/>
+    <path class="r0" d="M255.4 172.3v-9.6h1.2v9.6zM253.6 166h4.8v.9h-4.8z"/>
+    <ellipse class="mist drift1" id="mist1" cx="150" cy="222" rx="150" ry="9" filter="url(#fMist)"/>
+    <path class="r1" id="hills"/>
+    <ellipse class="mist drift2" id="mist2" cx="300" cy="241" rx="170" ry="8" filter="url(#fMist)"/>
+    <path class="r2" id="trees"/>
+    <path class="r2 back" id="trees2"/>
+  </svg></div>
+  <div class="switch" id="switch">
+    <button data-p="0" class="on">Úlohy</button>
+    <button data-p="1">Poznámky</button>
+    <button class="sun" id="sunLbl" aria-label="Náhľad dennej doby"></button>
+    <span class="line" id="line"></span>
+  </div>
+
+  <div class="pager" id="pager">
+    <section class="panel" id="pTasks"></section>
+    <section class="panel" id="pNotes"></section>
+  </div>
+
+  <div class="dock" id="dock">
+    <div class="bar"><input id="qi" placeholder="Pridať úlohu" autocomplete="off" enterkeyhint="done">
+      <button class="go" id="qgo" aria-label="Pridať"><svg viewBox="0 0 16 16"><path d="M8 2.5v11M2.5 8h11"/></svg></button></div>
+    <div class="parse" id="parse">Termín, čas a výkričník napíš rovno do textu</div>
+  </div>
+
+  <div class="shade" id="shade"></div>
+  <div class="sheet" id="sheet"></div>
+  <div class="snack" id="snack"><span id="snackT"></span><button id="snackU">Späť</button></div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const day=d=>{const x=new Date();x.setHours(0,0,0,0);x.setDate(x.getDate()+d);return x.getTime()};
+const diff=t=>Math.round((t-day(0))/864e5);
+const DN=['nedeľa','pondelok','utorok','streda','štvrtok','piatok','sobota'];
+const DS=['ne','po','ut','st','št','pi','so'];
+const MN=['januára','februára','marca','apríla','mája','júna','júla','augusta','septembra','októbra','novembra','decembra'];
+const cap=s=>s[0].toUpperCase()+s.slice(1);
+const LISTS=[{id:'os',n:'Osobné'},{id:'sk',n:'Škola'},{id:'pr',n:'Projekty'}];
+const L=id=>LISTS.find(l=>l.id===id)||LISTS[0];
+
+const KEY='jaskyna';
+const FRESH=()=>({f:'today',tasks:[],notes:[{id:'n0',pin:true,ts:Date.now(),t:'Ako na Jaskyňu',
+  b:'Úlohu pridáš dole. Rovno do textu môžeš napísať termín a čas: „nemčina zajtra o 16“, „basket v piatok 18:30“. Výkričník ju označí ako dôležitú.\n\nPotiahnutím prsta po zozname prepínaš Dnes, 7 dní, Všetko a zoznamy. Za posledným zoznamom sú Poznámky.\n\nÚlohu s termínom pošleš do Google Kalendára v jej detaile cez „Do kalendára“.\n\nVšetko sa ukladá len v tomto zariadení. Na prenos alebo zálohu slúži „Záloha a obnova“ úplne dole v zozname.\n\nTúto poznámku môžeš kľudne vymazať.'}]});
+let S;try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+if(!S||!Array.isArray(S.tasks))S=FRESH();
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){snack&&snack('Nedá sa uložiť, úložisko je plné')}};
+try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
+let showDone=false,q='',menuOpen=false,slideIn='';
+
+/* ---------------- progress ring ---------------- */
+function ringSVG(items){
+  const c=66,r=58,C=2*Math.PI*r,n=items.length,gap=n>1?5:0,done=items.filter(t=>t.done).length;
+  let segs='';
+  if(!n)segs=`<circle cx="${c}" cy="${c}" r="${r}" fill="none" style="stroke:var(--track)" stroke-width="4"/>`;
+  else{
+    const seg=C/n-gap;
+    [...items.filter(t=>t.done),...items.filter(t=>!t.done)].forEach((t,i)=>{
+      const late=!t.done&&t.due<day(0);
+      const col=t.done?'var(--gold)':late?'var(--ember)':'var(--track)';
+      segs+=`<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke-width="4" stroke-linecap="round"
+        stroke-dasharray="${Math.max(seg-2,1)} ${C-seg+2}" stroke-dashoffset="${-(i*C/n+gap/2+1)}" transform="rotate(-90 ${c} ${c})"
+        style="stroke:${col};${late?'opacity:.55;':''}transition:stroke .4s ease ${i*40}ms"/>`;
+    });
+  }
+  return `<svg viewBox="0 0 132 132" role="img" aria-label="Hotovo ${done} z ${n} dnešných úloh">${segs}
+    <text x="${c}" y="${c+7}" text-anchor="middle" font-family="Jost,-apple-system,system-ui,sans-serif" font-weight="300" font-size="28" style="fill:var(--ivory)">${done}<tspan style="fill:var(--ash2)">/${n}</tspan></text>
+    <text x="${c}" y="${c+25}" text-anchor="middle" font-family="Jost,-apple-system,system-ui,sans-serif" font-size="10.5" style="fill:var(--ash)">${n&&done===n?'splnené':'hotovo'}</text>
+  </svg>`;
+}
+
+let AC;
+function chime(all){
+  try{
+    AC=AC||new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();
+    const t0=AC.currentTime,out=AC.createGain(),night=SUN.alt< -6,dusk=SUN.alt<4;out.gain.value=night?.07:dusk?.14:.22;out.connect(AC.destination);
+    // a crisp mechanical tick, like a watch crown clicking into place
+    const nb=AC.createBuffer(1,AC.sampleRate*.03,AC.sampleRate),d=nb.getChannelData(0);
+    for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,6);
+    const ns=AC.createBufferSource(),hp=AC.createBiquadFilter();hp.type='highpass';hp.frequency.value=3000;
+    ns.buffer=nb;ns.connect(hp);hp.connect(out);ns.start(t0);
+    // then a soft bell
+    const pitch=night?.5:dusk?.75:1;const notes=(all?[659.25,783.99,987.77,1318.5]:[1046.5,1567.98]).map(f=>f*pitch);
+    notes.forEach((f,i)=>{
+      const st=t0+.045+i*(all?.11:.07);
+      [1,2.76].forEach((m,k)=>{const o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.value=f*m;
+        g.gain.setValueAtTime(0,st);g.gain.linearRampToValueAtTime(k?.08:.5,st+.008);g.gain.exponentialRampToValueAtTime(.0001,st+(all?1.6:.9));
+        o.connect(g);g.connect(out);o.start(st);o.stop(st+1.7)});
+    });
+  }catch(e){}
+  try{navigator.vibrate&&navigator.vibrate(all?[12,60,12,60,24]:12)}catch(e){}
+}
+function celebrate(row,btn,all){
+  chime(all);
+  ['','b'].forEach(c=>{const r=document.createElement('span');r.className='rip '+c;btn.appendChild(r);setTimeout(()=>r.remove(),900)});
+  row.classList.add('flash');
+  const dl=$('dial');if(dl){dl.classList.remove('glow','all');void dl.offsetWidth;dl.classList.add('glow');if(all)dl.classList.add('all')}
+}
+function hands(){const d=new Date(),h=d.getHours()%12,m=d.getMinutes()+d.getSeconds()/60;
+  const H=$('hh'),M=$('mh');if(H)H.setAttribute('transform',`rotate(${(h+m/60)*30} 66 66)`);if(M)M.setAttribute('transform',`rotate(${m*6} 66 66)`)}
+setInterval(hands,15000);
+
+/* ---------------- sun & palette ---------------- */
+const LAT=48.8048,LON=19.6390; // Brezno
+const rad=Math.PI/180;
+function sunAlt(date){
+  const d=(date.getTime()/864e5)+2440587.5-2451545.0;
+  const g=(357.529+0.98560028*d)*rad,q=280.459+0.98564736*d;
+  const Lm=(q+1.915*Math.sin(g)+0.020*Math.sin(2*g))*rad,e=(23.439-0.00000036*d)*rad;
+  const ra=Math.atan2(Math.cos(e)*Math.sin(Lm),Math.cos(Lm)),dec=Math.asin(Math.sin(e)*Math.sin(Lm));
+  const gmst=(18.697374558+24.06570982441908*d)%24;
+  const H=((gmst*15+LON)*rad-ra);
+  return Math.asin(Math.sin(LAT*rad)*Math.sin(dec)+Math.cos(LAT*rad)*Math.cos(dec)*Math.cos(H))/rad;
+}
+function sunTimes(ref){
+  const b=new Date(ref);b.setHours(0,0,0,0);let rise=null,set=null,prev=sunAlt(b);
+  for(let m=5;m<=1440;m+=5){const t=new Date(b.getTime()+m*6e4),a=sunAlt(t);
+    if(prev< -0.833&&a>=-0.833&&!rise)rise=t;if(prev>=-0.833&&a< -0.833)set=t;prev=a}
+  return {rise,set};
+}
+/* real sky over Brezno: sun and moon placed by true altitude and azimuth, looking south */
+const GMST=d=>(18.697374558+24.06570982441908*d)%24;
+function horiz(ra,dec,date){
+  const d=date.getTime()/864e5+2440587.5-2451545.0,H=GMST(d)*15*rad+LON*rad-ra,f=LAT*rad;
+  const alt=Math.asin(Math.sin(f)*Math.sin(dec)+Math.cos(f)*Math.cos(dec)*Math.cos(H));
+  const az=Math.atan2(Math.sin(H),Math.cos(H)*Math.sin(f)-Math.tan(dec)*Math.cos(f))/rad+180;
+  return {alt:alt/rad,az};
+}
+function sunPos(date){
+  const d=date.getTime()/864e5+2440587.5-2451545.0,g=(357.529+0.98560028*d)*rad,q=280.459+0.98564736*d;
+  const Lm=(q+1.915*Math.sin(g)+0.020*Math.sin(2*g))*rad,e=(23.439-0.00000036*d)*rad;
+  return horiz(Math.atan2(Math.cos(e)*Math.sin(Lm),Math.cos(Lm)),Math.asin(Math.sin(e)*Math.sin(Lm)),date);
+}
+function moonPos(date){
+  const d=date.getTime()/864e5+2440587.5-2451545.0;
+  const L=(218.316+13.176396*d)*rad,M=(134.963+13.064993*d)*rad,F=(93.272+13.229350*d)*rad;
+  const lon=L+6.289*rad*Math.sin(M),lat=5.128*rad*Math.sin(F),e=23.4397*rad;
+  const ra=Math.atan2(Math.sin(lon)*Math.cos(e)-Math.tan(lat)*Math.sin(e),Math.cos(lon));
+  const dec=Math.asin(Math.sin(lat)*Math.cos(e)+Math.cos(lat)*Math.sin(e)*Math.sin(lon));
+  const h=horiz(ra,dec,date);h.alt-=0.95*Math.cos(h.alt*rad);return h; // parallax
+}
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const skyX=az=>clamp(215+(az-180)*1.55,10,420);
+const skyY=alt=>226-Math.sign(alt)*Math.sqrt(Math.abs(alt)/90)*170;
+function rng(seed){return()=>{seed=(seed*1664525+1013904223)%4294967296;return seed/4294967296}}
+(function buildSky(){
+  const r=rng(7),NS='http://www.w3.org/2000/svg',g=$('stars');
+  for(let i=0;i<90;i++){const c=document.createElementNS(NS,'circle'),y=Math.pow(r(),1.35)*205;
+    c.setAttribute('cx',(r()*430).toFixed(1));c.setAttribute('cy',y.toFixed(1));c.setAttribute('r',(.35+Math.pow(r(),3)*.9).toFixed(2));
+    c.setAttribute('class','st'+(r()<.35?' tw':''));c.style.animationDelay=(-r()*4).toFixed(2)+'s';c.setAttribute('opacity',(.45+r()*.55).toFixed(2));g.appendChild(c)}
+  // near ridge: spruce forest of Horehronie
+  // rolling hills in the middle distance
+  const hp=[[0,236],[36,228],[70,222],[104,226],[138,216],[172,210],[206,218],[240,226],[276,220],[312,213],[350,220],[390,227],[430,222]];
+  let hd=`M0 300 L${hp[0][0]} ${hp[0][1]}`;
+  for(let i=1;i<hp.length;i++){const [x0,y0]=hp[i-1],[x1,y1]=hp[i];hd+=` Q${x0} ${y0} ${(x0+x1)/2} ${(y0+y1)/2}`}
+  $('hills').setAttribute('d',hd+' T430 222 L430 300Z');
+  // spruce forest of Horehronie in two rows: a softer row behind, a sharp row in front
+  const spruce=(x,b,h)=>{const w=h*.36,t=b-h;
+    return `M${x.toFixed(1)} ${t.toFixed(1)} L${(x-w*.3).toFixed(1)} ${(t+h*.3).toFixed(1)} L${(x-w*.15).toFixed(1)} ${(t+h*.3).toFixed(1)} L${(x-w*.55).toFixed(1)} ${(t+h*.62).toFixed(1)} L${(x-w*.28).toFixed(1)} ${(t+h*.62).toFixed(1)} L${(x-w*.8).toFixed(1)} ${b.toFixed(1)} L${(x+w*.8).toFixed(1)} ${b.toFixed(1)} L${(x+w*.28).toFixed(1)} ${(t+h*.62).toFixed(1)} L${(x+w*.55).toFixed(1)} ${(t+h*.62).toFixed(1)} L${(x+w*.15).toFixed(1)} ${(t+h*.3).toFixed(1)} L${(x+w*.3).toFixed(1)} ${(t+h*.3).toFixed(1)}Z `};
+  const row=(seed,base,amp,hmin,hvar,step)=>{const t=rng(seed),gy=x=>base+Math.sin(x/58)*amp+Math.sin(x/23+1)*2;
+    let d=`M0 300 L0 ${gy(0).toFixed(1)}`;for(let x=0;x<=430;x+=10)d+=` L${x} ${gy(x).toFixed(1)}`;d+=' L430 300Z ';
+    for(let x=-4;x<=436;x+=step+t()*step){const h=hmin+t()*hvar+(Math.sin(x/40)+1)*3;d+=spruce(x,gy(x)+1,h)}return d};
+  $('trees2').setAttribute('d',row(17,262,5,12,14,5));
+  $('trees').setAttribute('d',row(31,282,6,18,22,6));
+})();
+function fitSky(){const f=$('filters'),sk=document.querySelector('.sky');if(!f||!sk)return;sk.style.height=Math.max(f.getBoundingClientRect().top-$('app').getBoundingClientRect().top,180)+'px'}
+window.addEventListener('resize',fitSky);
+function moonPath(ph,r){
+  const k=(1-Math.cos(2*Math.PI*ph))/2,rx=(r*Math.abs(Math.cos(2*Math.PI*ph))).toFixed(2);
+  if(k<.015)return '';
+  return ph<.5?`M0 ${-r} A${r} ${r} 0 0 1 0 ${r} A${rx} ${r} 0 0 ${k<.5?0:1} 0 ${-r}Z`
+              :`M0 ${-r} A${r} ${r} 0 0 0 0 ${r} A${rx} ${r} 0 0 ${k<.5?1:0} 0 ${-r}Z`;
+}
+let MOON={up:false,k:0,ph:0};
+function paintSky(now,pal){
+  const sp=sunPos(now),mp=moonPos(now),ph=moonPhase(now),k=(1-Math.cos(2*Math.PI*ph))/2,root=document.documentElement.style;
+  const night=clamp((-sp.alt-3)/9,0,1),day=clamp(sp.alt/8,0,1);
+  // sun
+  $('sunG').style.transform=`translate(${skyX(sp.az)}px,${skyY(sp.alt)}px)`;
+  $('sunG').style.opacity=sp.alt>-3?1:0;
+  // afterglow and golden hour on the horizon below the sun
+  const hz=$('hglow');hz.setAttribute('cx',skyX(sp.az));hz.style.opacity=(clamp(1-Math.abs(sp.alt-1)/10,0,1)*.9).toFixed(2);
+  // moon: real phase and position
+  const r=7.5,lit=moonPath(ph,r);
+  $('moonLit').setAttribute('d',lit);$('moonClipP').setAttribute('d',lit);
+  $('moonG').style.transform=`translate(${skyX(mp.az)}px,${skyY(mp.alt)}px) rotate(${(mp.az-180)*.35}deg)`;
+  $('moonG').style.opacity=mp.alt>-3?(day>0?.55:1):0;
+  $('moonDark').setAttribute('opacity',(night*(k<.5?.55:.35)).toFixed(2));
+  $('moonHalo').setAttribute('opacity',(night*(.25+k*.75)).toFixed(2));
+  MOON={up:mp.alt>0,k,ph};
+  // moon and star colours: warm at night, never blue
+  root.setProperty('--moon',day>0?'rgba(255,255,255,.85)':mix(pal[4],'#F7ECDD',.45));
+  root.setProperty('--star',mix(pal[4],'#FFF4E4',.5));
+  root.setProperty('--ridge0',mix(pal[13],pal[12],.5));
+  root.setProperty('--mist',mix(pal[4],pal[12],.55));
+  root.setProperty('--cloud',mix('#FFFFFF',pal[12],.25));
+  // stars fade in with dusk; a bright moon washes the faint ones out
+  $('stars').style.opacity=(night*(1-(MOON.up?.4*k:0))).toFixed(2);
+  // valley mist strongest around sunrise and sunset, faint and moonlit at night
+  const mist=clamp(1-Math.abs(sp.alt-1)/12,0,1)*.55+night*(MOON.up?.12+k*.18:.06);
+  ['mist1','mist2'].forEach(id=>$(id).style.opacity=mist.toFixed(2));
+  ['cl1','cl2'].forEach(id=>$(id).style.opacity=(day*.5).toFixed(2));
+  return night;
+}
+let shootT;
+function shootingStar(){
+  clearTimeout(shootT);shootT=setTimeout(shootingStar,25000+Math.random()*50000);
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches||parseFloat($('stars').style.opacity||0)<.6||document.hidden)return;
+  const l=$('shoot'),x=60+Math.random()*310,y=20+Math.random()*90,dx=-(50+Math.random()*40),dy=22+Math.random()*16;
+  l.setAttribute('x1',x);l.setAttribute('y1',y);l.setAttribute('x2',x+dx);l.setAttribute('y2',y+dy);
+  const len=Math.hypot(dx,dy);l.style.strokeDasharray=len;
+  l.animate([{strokeDashoffset:len,opacity:0},{strokeDashoffset:len*.4,opacity:.9,offset:.4},{strokeDashoffset:-len,opacity:0}],{duration:900,easing:'ease-out'});
+}
+shootT=setTimeout(shootingStar,8000);
+function moonPhase(date){return(((date.getTime()/864e5+2440587.5-2451550.1)/29.530588853)%1+1)%1}
+/* palettes keyed by sun altitude in degrees. Dark half never contains blue light. */
+const KEYS=['black','dial','raise','hair','ivory','ash','ash2','gold','gold-lo','ember','onacc','sky1','sky2','ridge1','ridge2','orb','track'];
+const DARK=[
+  [-18,['#080504','#120C09','#1A110C','#26190F','#D9A27A','#8A6248','#4A3324','#D9733F','#6B3A20','#B9483A','#080504','#080504','#140B07','#1A100B','#110A07','#C9A07A','rgba(217,162,122,.14)']],
+  [-6, ['#110B09','#1C1310','#241914','#33231A','#E6BC98','#A07A60','#5A4030','#E0844A','#7A4626','#C25440','#110B09','#1A0F0E','#4A2A20','#2A1913','#1B110D','#E8A06A','rgba(230,188,152,.15)']],
+  [1.5,['#18110D','#231813','#2D1F18','#3B2A20','#F0D2B6','#B08E74','#6A5040','#E9934F','#8A5430','#C95A43','#18110D','#3A2420','#9A5534','#3A271D','#261912','#F5A85C','rgba(240,210,182,.16)']]
+];
+const LIGHT=[
+  [1.5,['#EADBC4','#F3E7D5','#E5D3B8','#D3BD9C','#3A2A1E','#7C6650','#B39F86','#B8742F','#D9BC93','#B4473A','#FFF8EE','#E6B98A','#F0D7B4','#9C8A62','#3E3A28','#F2A04E','rgba(58,42,30,.12)']],
+  [10, ['#E4E6D6','#F1F2E8','#D9DDC8','#C8CDB2','#1A2A1D','#566A55','#9CA88F','#2F5A36','#C5D0B4','#B4473A','#F4F6EC','#CED8C2','#EAE6D2','#6F8A68','#22402B','#F4CF78','rgba(26,42,29,.12)']],
+  [30, ['#E1E9DF','#EFF4EC','#D4DFD0','#C2D0BE','#11241A','#4B6452','#8EA392','#1F4E35','#B7CCBA','#B4473A','#F1F6EF','#B9D3D0','#DCE8DE','#5E8169','#173322','#F6D884','rgba(17,36,26,.12)']]
+];
+const hex=h=>h.startsWith('rgba')?h.match(/[\d.]+/g).map(Number):[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16),1];
+const mix=(a,b,t)=>{const A=hex(a),B=hex(b);const v=A.map((x,i)=>x+(B[i]-x)*t);return `rgba(${Math.round(v[0])},${Math.round(v[1])},${Math.round(v[2])},${v[3].toFixed(3)})`};
+function paletteAt(alt){
+  const P=alt<1.5?DARK:LIGHT;
+  if(alt<=P[0][0])return P[0][1];if(alt>=P[P.length-1][0])return P[P.length-1][1];
+  for(let i=0;i<P.length-1;i++)if(alt>=P[i][0]&&alt<=P[i+1][0]){const t=(alt-P[i][0])/(P[i+1][0]-P[i][0]);return P[i][1].map((c,k)=>mix(c,P[i+1][1][k],t))}
+}
+let SUN={alt:0},preview=null;
+const PREVIEWS=[['ráno',7.4],['deň',12.5],['večer',15.9],['súmrak',16.7],['noc',22.5]];
+function nowForTheme(){if(preview==null)return new Date();const d=new Date();d.setHours(0,0,0,0);return new Date(d.getTime()+PREVIEWS[preview][1]*36e5)}
+function applySun(){
+  const now=nowForTheme(),alt=sunAlt(now);SUN={alt};
+  const pal=paletteAt(alt),root=document.documentElement.style;
+  KEYS.forEach((k,i)=>root.setProperty('--'+k,pal[i]));
+  root.setProperty('--gold-hi',pal[7]);
+  $('tc')&&$('tc').setAttribute('content',pal[0]);
+  const {rise,set}=sunTimes(now);
+  paintSky(now,pal);
+  // label
+  const fmt=t=>t?t.toLocaleTimeString('sk-SK',{hour:'numeric',minute:'2-digit'}):'';
+  const L=$('sunLbl');
+  if(preview!=null){L.textContent=cap(PREVIEWS[preview][0]);L.classList.add('prev')}
+  else{L.classList.remove('prev');L.textContent=rise&&now<rise?'Východ '+fmt(rise):set&&now<set?'Západ '+fmt(set):'Východ '+fmt(sunTimes(new Date(now.getTime()+864e5)).rise)}
+  const pct=Math.round(MOON.k*100),mt=pct>=98?'spln':pct<=2?'nov':`mesiac ${pct} %`;
+  if(preview==null&&alt< -6&&MOON.up)L.textContent=cap(mt);
+  L.title=`Mesiac: ${pct} % osvetlený, ${MOON.ph<.5?'dorastá':'cúva'}`;
+}
+$('sunLbl').onclick=()=>{preview=preview==null?0:preview+1;if(preview>=PREVIEWS.length)preview=null;applySun()};
+setInterval(()=>{if(preview==null)applySun()},60000);
+
+/* ---------------- tasks panel ---------------- */
+const sortT=(a,b)=>((a.due??9e15)-(b.due??9e15))||((a.time||'99')<(b.time||'99')?-1:(a.time||'99')>(b.time||'99')?1:0)||(b.hi-a.hi);
+function dueText(t){
+  if(t.due==null)return ['',''];
+  const d=diff(t.due),x=new Date(t.due);
+  if(d<0)return [d===-1?'včera':`pred ${-d} d`,'late'];
+  if(d===0)return ['dnes','today'];
+  if(d===1)return ['zajtra',''];
+  return [d<7?DS[x.getDay()]+' '+x.getDate()+'.':`${x.getDate()}. ${x.getMonth()+1}.`,''];
+}
+function row(t,opt={}){
+  const [dt,dc]=dueText(t);
+  const tm=t.time&&!t.done?`<span class="du tm">${t.time}</span>`:'';
+  return `<div class="task ${t.hi?'hi':''} ${t.done?'done':''}" data-id="${t.id}">
+    <span class="mk"></span><button class="chk" data-a="tog" aria-label="${t.done?'Vrátiť':'Dokončiť'}"></button>
+    <div class="bd" data-a="edit"><span class="t">${esc(t.t)}</span>${opt.list?`<span class="ls">${L(t.l).n}</span>`:''}${opt.noDue||t.done?'':`<span class="du ${dc}">${dt}</span>`}${tm}</div></div>`;
+}
+function grp(title,items,opt={}){
+  if(!items.length)return '';
+  return `${title?`<div class="gh ${opt.late?'late':''}"><span>${title}</span><span>${items.length}</span></div>`:''}${items.map(t=>row(t,opt)).join('')}`;
+}
+function plural(n,a,b,c){return n===1?a:n>1&&n<5?b:c}
+
+function renderTasks(){
+  const now=new Date(),open=S.tasks.filter(t=>!t.done);
+  const todays=S.tasks.filter(t=>t.due!=null&&t.due<=day(0)&&(!t.done||t.due===day(0)));
+  const todo=todays.filter(t=>!t.done).length,done=todays.filter(t=>t.done).length;
+  const late=open.filter(t=>t.due!=null&&t.due<day(0)).length;
+  const cnt={today:open.filter(t=>t.due!=null&&t.due<=day(0)).length,week:open.filter(t=>t.due!=null&&t.due<=day(7)).length,all:open.length};
+  LISTS.forEach(l=>cnt[l.id]=open.filter(t=>t.l===l.id).length);
+  const F=[['today','Dnes'],['week','7 dní'],['all','Všetko']];
+  const curL=LISTS.find(l=>l.id===S.f);
+
+  let body='';
+  if(S.f==='today'){
+    const lt=open.filter(t=>t.due!=null&&t.due<day(0)).sort(sortT),td=open.filter(t=>t.due===day(0)).sort(sortT);
+    body=lt.length||td.length?grp('Po termíne',lt,{late:true,list:true})+grp(lt.length?'Dnes':'',td,{list:true,noDue:true})
+      :`<div class="empty"><b>Na dnes je hotovo.</b>Zajtra čakajú ${cnt.week} ${plural(cnt.week,'úloha','úlohy','úloh')} v najbližších 7 dňoch.</div>`;
+  }else if(S.f==='week'){
+    body=grp('Po termíne',open.filter(t=>t.due!=null&&t.due<day(0)).sort(sortT),{late:true,list:true});
+    for(let i=0;i<=7;i++){const x=new Date(day(i));
+      body+=grp(i===0?'Dnes':i===1?'Zajtra':`${cap(DN[x.getDay()])} ${x.getDate()}. ${x.getMonth()+1}.`,open.filter(t=>t.due===day(i)).sort(sortT),{list:true,noDue:true})}
+    if(!cnt.week)body=`<div class="empty"><b>Najbližší týždeň je voľný.</b>Pridaj úlohu dole.</div>`;
+  }else{
+    const inL=t=>S.f==='all'||t.l===S.f,o=open.filter(inL),isAll=S.f==='all';
+    body=grp('Po termíne',o.filter(t=>t.due!=null&&t.due<day(0)).sort(sortT),{late:true,list:isAll})+
+         grp('Naplánované',o.filter(t=>t.due!=null&&t.due>=day(0)).sort(sortT),{list:isAll})+
+         grp('Bez termínu',o.filter(t=>t.due==null),{list:isAll});
+    if(!o.length)body=`<div class="empty"><b>Zoznam je prázdny.</b>Pridaj úlohu dole.</div>`;
+  }
+  const doneList=S.tasks.filter(t=>t.done&&(S.f==='today'||S.f==='week'?t.due!=null&&t.due<=day(S.f==='week'?7:0):S.f==='all'||t.l===S.f));
+  if(doneList.length)body+=showDone?grp('Dokončené',doneList,{list:true})+`<button class="more" data-a="done">Skryť dokončené</button>`
+    :`<button class="more" data-a="done">Dokončené (${doneList.length})</button>`;
+  body+=`<button class="more foot" data-a="backup">Záloha a obnova</button>`;
+
+  const keep=$('pTasks').scrollTop;
+  $('pTasks').innerHTML=`
+    <div class="head"><div class="dial" id="dial">${ringSVG(todays)}</div>
+      <div class="htxt"><div class="d">${cap(DN[now.getDay()])}<br>${now.getDate()}. ${MN[now.getMonth()]}</div>
+      <div class="r">${todo?`Na dnes ${plural(todo,'zostáva','zostávajú','zostáva')} ${todo} ${plural(todo,'úloha','úlohy','úloh')}`:'Dnešok je splnený'}${done?`,<br><em>${done} ${plural(done,'hotová','hotové','hotových')}</em>`:''}.${late?`<br>${late} po termíne.`:''}</div></div></div>
+    <div class="vista" aria-hidden="true"></div>
+    <div class="fwrap"><nav class="filters" id="filters">${F.map(([k,n])=>`<button class="${S.f===k?'on':''}" data-f="${k}">${n}${cnt[k]?`<sup>${cnt[k]}</sup>`:''}</button>`).join('')}
+      <button class="lbtn ${curL?'on':''} ${menuOpen?'open':''}" data-a="menu" aria-expanded="${menuOpen}">${curL?curL.n:'Zoznamy'}<svg viewBox="0 0 9 6"><path d="M1 1l3.5 3.5L8 1"/></svg></button></nav>
+      <div class="menu ${menuOpen?'on':''}">${LISTS.map(l=>`<button class="${S.f===l.id?'on':''}" data-f="${l.id}">${l.n}<span>${cnt[l.id]||''}</span></button>`).join('')}</div></div>
+    <div class="flist ${slideIn}" id="flist">${body}</div>`;
+  slideIn='';
+  $('pTasks').scrollTop=keep;
+  fitSky();
+  hands();
+}
+
+/* ---------------- notes panel ---------------- */
+function when(ts){const x=new Date(ts),d=diff(new Date(ts).setHours(0,0,0,0));
+  return d===0?x.toLocaleTimeString('sk-SK',{hour:'2-digit',minute:'2-digit'}):d===-1?'včera':d>-7?DN[x.getDay()]:`${x.getDate()}. ${x.getMonth()+1}.`}
+function renderNotes(focus){
+  const ql=q.toLowerCase();
+  const ns=S.notes.filter(n=>!ql||(n.t+' '+n.b).toLowerCase().includes(ql)).sort((a,b)=>(b.pin-a.pin)||(b.ts-a.ts));
+  $('pNotes').innerHTML=`<label class="nsearch"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="5"/><path d="m11 11 3.5 3.5"/></svg><input id="nq" placeholder="Hľadať v poznámkach" value="${esc(q)}"></label>
+    ${ns.length?ns.map(n=>`<button class="note ${n.pin?'pin':''}" data-id="${n.id}"><span class="mk"></span><span class="w">
+      <span class="top"><span class="nt">${esc(n.t||'Bez názvu')}</span><span class="tm">${when(n.ts)}</span></span>
+      <span class="pv" style="display:block">${esc((n.b||'').replace(/\n/g,'  ')||'Prázdna poznámka')}</span></span></button>`).join('')
+    :`<div class="empty">${ql?'Nič sa nenašlo.':'<b>Zatiaľ žiadne poznámky.</b>Napíš prvú dole.'}</div>`}<button class="more foot" data-a="backup">Záloha a obnova</button>`;
+  const i=$('nq');i.oninput=()=>{q=i.value;renderNotes(true)};
+  if(focus){i.focus();i.setSelectionRange(q.length,q.length)}
+}
+
+/* ---------------- pager ---------------- */
+let page=0;
+function setLine(p){
+  const bs=$('switch').querySelectorAll('button'),a=bs[0],b=bs[1];
+  const l=a.offsetLeft+(b.offsetLeft-a.offsetLeft)*p,w=a.offsetWidth+(b.offsetWidth-a.offsetWidth)*p;
+  $('line').style.left=l+'px';$('line').style.width=w+'px';
+}
+$('pager').addEventListener('scroll',()=>{
+  const pg=$('pager'),p=pg.scrollLeft/pg.clientWidth;setLine(p);
+  const np=Math.round(p);if(np!==page){page=np;
+    $('switch').querySelectorAll('button').forEach((x,i)=>x.classList.toggle('on',i===page));
+    $('qi').placeholder=page?'Nová poznámka':'Pridať úlohu';updParse()}
+},{passive:true});
+$('switch').onclick=e=>{const b=e.target.closest('button[data-p]');if(!b)return;$('pager').scrollTo({left:+b.dataset.p*$('pager').clientWidth,behavior:'smooth'})};
+window.addEventListener('resize',()=>{$('pager').scrollLeft=page*$('pager').clientWidth;setLine(page)});
+
+/* ---------------- swipe ---------------- */
+const ORDER=()=>['today','week','all',...LISTS.map(l=>l.id)];
+function goPage(p){$('pager').scrollTo({left:p*$('pager').clientWidth,behavior:'smooth'})}
+function stepFilter(dir){ // dir +1 = next (swipe left), -1 = previous
+  const o=ORDER(),i=o.indexOf(S.f),n=i+dir;
+  if(n<0)return false;
+  if(n>=o.length){goPage(1);return true}
+  S.f=o[n];menuOpen=false;slideIn=dir>0?'inL':'inR';save();renderTasks();return true;
+}
+(function(){
+  let x0,y0,lock=null,dx=0,target=null;
+  const pg=$('pager');
+  pg.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='mouse'&&e.button!==0)return;
+    if(e.target.closest('input,textarea,.menu'))return;
+    x0=e.clientX;y0=e.clientY;lock=null;dx=0;target=page===0?$('flist'):null;
+  });
+  pg.addEventListener('pointermove',e=>{
+    if(x0==null)return;
+    const mx=e.clientX-x0,my=e.clientY-y0;
+    if(!lock&&(Math.abs(mx)>10||Math.abs(my)>10))lock=Math.abs(mx)>Math.abs(my)*1.2?'x':'y';
+    if(lock!=='x')return;
+    dx=mx;
+    if(target){const o=ORDER(),atStart=o.indexOf(S.f)===0&&dx>0;target.style.transition='none';target.style.transform=`translateX(${atStart?dx*.25:dx*.6}px)`;target.style.opacity=1-Math.min(Math.abs(dx)/600,.4)}
+  });
+  const end=()=>{
+    if(x0==null)return;
+    const wasX=lock==='x',d=dx;x0=null;
+    if(target){target.style.transition='transform .25s ease,opacity .25s';target.style.transform='';target.style.opacity=''}
+    if(!wasX||Math.abs(d)<55)return;
+    if(page===0){const moved=stepFilter(d<0?1:-1);if(moved&&target)target.style.transition='none'}
+    else if(d>0){goPage(0)}
+  };
+  pg.addEventListener('pointerup',end);pg.addEventListener('pointercancel',end);
+  // swallow the click that follows a horizontal drag so it doesn't tick a task
+  pg.addEventListener('click',e=>{if(lock==='x'){e.stopPropagation();e.preventDefault();lock=null}},true);
+})();
+
+/* ---------------- interactions ---------------- */
+$('pTasks').onclick=e=>{
+  const f=e.target.closest('[data-f]');if(f){S.f=f.dataset.f;menuOpen=false;save();renderTasks();return}
+  const a=e.target.closest('[data-a]');
+  if(menuOpen&&!(a&&a.dataset.a==='menu')){menuOpen=false;renderTasks();if(!a)return}
+  if(!a)return;
+  if(a.dataset.a==='menu'){menuOpen=!menuOpen;renderTasks();return}
+  if(a.dataset.a==='done'){showDone=!showDone;renderTasks();return}
+  if(a.dataset.a==='backup'){openBackup();return}
+  const r=a.closest('.task'),t=S.tasks.find(x=>x.id===r.dataset.id);
+  if(a.dataset.a==='tog'){
+    t.done=!t.done;save();r.classList.toggle('done',t.done);
+    if(t.done){const td=S.tasks.filter(x=>x.due!=null&&x.due<=day(0)&&(!x.done||x.due===day(0)));const all=td.length>0&&td.every(x=>x.done)&&t.due!=null&&t.due<=day(0);celebrate(r,a,all);snack(all?'Všetko na dnes je hotové':'Hotovo',()=>{t.done=false;save();renderTasks()});$('dial').innerHTML=ringSVG(S.tasks.filter(x=>x.due!=null&&x.due<=day(0)&&(!x.done||x.due===day(0))));hands();setTimeout(()=>{r.classList.add('gone');setTimeout(renderTasks,300)},850)}
+    else setTimeout(renderTasks,200);
+  }
+  if(a.dataset.a==='edit')editTask(t);
+};
+$('pNotes').onclick=e=>{if(e.target.closest('[data-a=backup]')){openBackup();return}const n=e.target.closest('.note');if(n)openNote(S.notes.find(x=>x.id===n.dataset.id))};
+
+function parse(s){
+  let t=' '+s+' ',due=S.f==='today'?0:null,hi=false,l=LISTS.some(x=>x.id===S.f)?S.f:'os';
+  const R=[[/\s(dnes)\s/i,0],[/\s(zajtra)\s/i,1],[/\s(pozajtra)\s/i,2],[/\s(o týždeň)\s/i,7]];
+  for(const [r,d] of R)if(r.test(t)){due=d;t=t.replace(r,' ')}
+  DN.forEach((dn,i)=>{const r=new RegExp('\\s(v |vo )?'+dn+'\\s','i');if(r.test(t)){let d=(i-new Date().getDay()+7)%7||7;due=d;t=t.replace(r,' ')}});
+  let time=null;
+  const tr=t.match(/\s(?:o\s+|o\s*)?(\d{1,2})(?::|\.)(\d{2})(?=\s)/i)||t.match(/\so\s+(\d{1,2})(?=\s)/i);
+  if(tr){const h=+tr[1],m=tr[2]?+tr[2]:0;if(h<24&&m<60){time=String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');t=t.replace(tr[0],' ');if(due==null)due=0}}
+  if(/!/.test(t)){hi=true;t=t.replace(/!+/g,'')}
+  LISTS.forEach(x=>{const r=new RegExp('\\s#'+x.n+'\\s','i');if(r.test(t)){l=x.id;t=t.replace(r,' ')}});
+  return {t:t.replace(/\s+/g,' ').trim(),due,hi,l,time};
+}
+function updParse(){
+  const v=$('qi').value.trim(),el=$('parse');
+  if(page){el.textContent=v?'Enter otvorí novú poznámku':'Napíš názov a stlač Enter';return}
+  if(!v){el.textContent='Termín, čas a výkričník napíš rovno do textu';return}
+  const r=parse(v),dl=r.due==null?'bez termínu':r.due===0?'dnes':r.due===1?'zajtra':r.due===2?'pozajtra':(()=>{const x=new Date(day(r.due));return DN[x.getDay()]+' '+x.getDate()+'.'})();
+  el.innerHTML=`<b>${dl}${r.time?' o '+r.time:''}</b>${r.hi?', <b>dôležité</b>':''}, ${L(r.l).n}`;
+}
+$('qi').oninput=updParse;
+function submit(){
+  const v=$('qi').value.trim();if(!v)return;
+  if(page){const n={id:'n'+Date.now(),t:v,b:'',pin:false,ts:Date.now()};S.notes.push(n);save();$('qi').value='';updParse();renderNotes();openNote(n,true);return}
+  const r=parse(v);if(!r.t)return;
+  S.tasks.push({id:'t'+Date.now(),t:r.t,l:r.l,hi:r.hi,due:r.due==null?null:day(r.due),time:r.time,done:false,note:''});
+  save();$('qi').value='';updParse();renderTasks();snack('Úloha pridaná');
+}
+$('qgo').onclick=submit;$('qi').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();submit()}};
+
+/* ---------------- sheets ---------------- */
+function openSheet(html,full){const s=$('sheet');s.className='sheet'+(full?' full':'');s.innerHTML=html;requestAnimationFrame(()=>{s.classList.add('on');$('shade').classList.add('on')})}
+function closeSheet(){$('sheet').classList.remove('on');$('shade').classList.remove('on');document.activeElement&&document.activeElement.blur()}
+$('shade').onclick=()=>{const c=$('sheet').querySelector('[data-close]');c?c.click():closeSheet()};
+
+function choices(name,opts,cur){return `<div class="ch" data-ch="${name}">${opts.map(([v,l])=>`<button data-v="${v}" class="${String(v)===String(cur)?'on':''}">${l}</button>`).join('')}</div>`}
+function editTask(t){
+  const d0=t.due==null?'x':diff(t.due),st={due:d0,hi:t.hi?1:0,l:t.l};
+  const dues=[[0,'dnes'],[1,'zajtra'],[7,'o týždeň'],['x','žiadny']];
+  if(d0!=='x'&&![0,1,7].includes(d0))dues.unshift([d0,dueText(t)[0]]);
+  openSheet(`<div class="sbar"><button class="l" data-close data-s="x">Zrušiť</button><button data-s="ok">Uložiť</button></div>
+    <input class="ti" id="et" value="${esc(t.t)}"><textarea class="tx" id="en" placeholder="Poznámka k úlohe">${esc(t.note)}</textarea>
+    <div class="opt"><span>Termín</span>${choices('due',dues,d0)}</div>
+    <div class="opt"><span>Čas</span><input type="time" class="time" id="etm" value="${t.time||''}"></div>
+    <div class="opt"><span>Dôležité</span>${choices('hi',[[1,'áno'],[0,'nie']],st.hi)}</div>
+    <div class="opt"><span>Zoznam</span>${choices('l',LISTS.map(l=>[l.id,l.n]),t.l)}</div>
+    <div class="opt"><span>Google Kalendár</span><a class="cal" id="ecal" target="_blank" rel="noopener"></a></div>
+    <button class="del" data-s="del">Vymazať úlohu</button>`);
+  const calUpd=()=>{const a=$('ecal'),d=st.due==='x'?null:day(st.due);
+    if(d==null){a.removeAttribute('href');a.textContent='najprv zvoľ termín';a.className='cal off';return}
+    a.href=calLink({t:$('et').value.trim()||t.t,note:$('en').value.trim(),due:d,time:$('etm').value||null});
+    a.textContent=t.cal?'v kalendári, pridať znova':'Do kalendára';a.className='cal'+(t.cal?' done':'')};
+  calUpd();$('etm').oninput=calUpd;
+  $('ecal').onclick=e=>{if(!$('ecal').href){e.preventDefault();return}t.cal=true;save();setTimeout(calUpd,50)};
+  $('sheet').onclick=e=>{
+    const c=e.target.closest('[data-ch] button');
+    if(c){const g=c.parentElement;g.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===c));const v=c.dataset.v;
+      st[g.dataset.ch]=g.dataset.ch==='l'?v:v==='x'?'x':+v;if(g.dataset.ch==='due')calUpd();return}
+    const s=e.target.closest('[data-s]');if(!s)return;
+    if(s.dataset.s==='ok'){t.t=$('et').value.trim()||t.t;t.note=$('en').value.trim();t.hi=!!st.hi;t.l=st.l;t.due=st.due==='x'?null:day(st.due);t.time=$('etm').value||null;save()}
+    if(s.dataset.s==='del'){const i=S.tasks.indexOf(t);S.tasks.splice(i,1);save();snack('Úloha vymazaná',()=>{S.tasks.splice(i,0,t);save();renderTasks()})}
+    closeSheet();renderTasks();
+  };
+}
+function calLink(t){
+  const p=n=>String(n).padStart(2,'0'),d=new Date(t.due),ymd=x=>`${x.getFullYear()}${p(x.getMonth()+1)}${p(x.getDate())}`;
+  let dates;
+  if(t.time){const [h,m]=t.time.split(':').map(Number),a=new Date(d);a.setHours(h,m,0,0);const b=new Date(a.getTime()+36e5);
+    const f=x=>`${ymd(x)}T${p(x.getHours())}${p(x.getMinutes())}00`;dates=`${f(a)}/${f(b)}`}
+  else{const n=new Date(d);n.setDate(n.getDate()+1);dates=`${ymd(d)}/${ymd(n)}`}
+  const q=new URLSearchParams({action:'TEMPLATE',text:t.t,dates,ctz:'Europe/Bratislava'});if(t.note)q.set('details',t.note);
+  return 'https://calendar.google.com/calendar/render?'+q.toString();
+}
+/* ---------------- backup ---------------- */
+function openBackup(){
+  const n=S.tasks.length,m=S.notes.length;
+  openSheet(`<div class="sbar"><span class="l">Záloha a obnova</span><button data-close data-s="x">Hotovo</button></div>
+    <p class="bk">Jaskyňa ukladá všetko len v tomto zariadení (${n} ${plural(n,'úloha','úlohy','úloh')}, ${m} ${plural(m,'poznámka','poznámky','poznámok')}). Zálohu si stiahni do súboru. Na inom zariadení ju otvoríš cez Obnoviť.</p>
+    <div class="opt"><span>Uložiť všetko do súboru</span><button class="cal" data-s="exp">Stiahnuť zálohu</button></div>
+    <div class="opt"><span>Nahradiť dáta zálohou</span><label class="cal">Obnoviť zo súboru<input type="file" id="imp" accept=".json,application/json" hidden></label></div>
+    <p class="bk small" id="bkmsg"></p>`);
+  $('imp').onchange=async e=>{const f=e.target.files[0];if(!f)return;
+    try{const d=JSON.parse(await f.text());if(!Array.isArray(d.tasks)||!Array.isArray(d.notes))throw 0;
+      const old=S;S={...FRESH(),...d,f:'today'};save();renderTasks();renderNotes();closeSheet();
+      snack(`Obnovené: ${S.tasks.length} ${plural(S.tasks.length,'úloha','úlohy','úloh')}, ${S.notes.length} ${plural(S.notes.length,'poznámka','poznámky','poznámok')}`,()=>{S=old;save();renderTasks();renderNotes()})}
+    catch(_){$('bkmsg').textContent='Tento súbor nie je záloha Jaskyne. Nič som nezmenil.'}};
+  $('sheet').onclick=e=>{const s=e.target.closest('[data-s]');if(!s)return;
+    if(s.dataset.s==='exp'){const d=new Date(),p=x=>String(x).padStart(2,'0');
+      const b=new Blob([JSON.stringify({app:'jaskyna',v:1,saved:d.toISOString(),tasks:S.tasks,notes:S.notes},null,1)],{type:'application/json'});
+      const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`jaskyna-${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}.json`;
+      document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
+      $('bkmsg').textContent='Záloha je stiahnutá.';return}
+    closeSheet()};
+}
+function openNote(n,focusBody){
+  openSheet(`<div class="sbar"><button class="l" data-s="pin">${n.pin?'Odopnúť':'Pripnúť'}</button><button data-close data-s="ok">Hotovo</button></div>
+    <input class="ti" id="nt" placeholder="Názov" value="${esc(n.t)}"><textarea class="tx" id="nb" placeholder="Píš">${esc(n.b)}</textarea>
+    <button class="del" data-s="del">Vymazať poznámku</button>`,true);
+  const up=()=>{n.t=$('nt').value;n.b=$('nb').value;n.ts=Date.now();save()};
+  $('nt').oninput=up;$('nb').oninput=up;
+  if(focusBody)setTimeout(()=>$('nb').focus(),420);
+  $('sheet').onclick=e=>{const s=e.target.closest('[data-s]');if(!s)return;
+    if(s.dataset.s==='pin'){n.pin=!n.pin;save();s.textContent=n.pin?'Odopnúť':'Pripnúť';return}
+    if(s.dataset.s==='del'){const i=S.notes.indexOf(n);S.notes.splice(i,1);save();snack('Poznámka vymazaná',()=>{S.notes.splice(i,0,n);save();renderNotes()})}
+    else if(!n.t.trim()&&!n.b.trim()){S.notes=S.notes.filter(x=>x!==n);save()}
+    closeSheet();renderNotes();
+  };
+}
+
+let snT;function snack(m,undo){$('snackT').textContent=m;$('snackU').style.display=undo?'':'none';$('snack').classList.add('on');
+  $('snackU').onclick=()=>{$('snack').classList.remove('on');undo&&undo()};clearTimeout(snT);snT=setTimeout(()=>$('snack').classList.remove('on'),3000)}
+
+applySun();renderTasks();renderNotes();setLine(0);
+document.fonts&&document.fonts.ready.then(()=>setLine(page));
+if('serviceWorker' in navigator&&location.protocol==='https:')addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+</script>
+</body>
+</html>
+
+</body></html>
